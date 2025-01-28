@@ -1,0 +1,91 @@
+library(shiny)
+library(ggplot2)
+library(DT)
+
+file_path <- "health_data.csv"
+
+if (file.exists(file_path)) {
+  data <- read.csv(file_path)
+}
+
+ui <- fluidPage(
+  theme = bslib::bs_theme(
+    bg = "#f8f9fa",
+    fg = "#343a40",
+    primary = "#007bff",
+    base_font = bslib::font_google("Roboto")
+  ),
+  titlePanel("Health Data Dashboard"),
+  sidebarLayout(
+    sidebarPanel(
+      sliderInput("ageRange", "Select Age Range:",
+                  min = min(data$Age), max = max(data$Age),
+                  value = c(min(data$Age), max(data$Age))),
+      selectInput("genderFilter", "Filter by Gender:",
+                  choices = c("All", unique(data$Gender)),
+                  selected = "All")
+    ),
+    mainPanel(
+      tabsetPanel(
+        tabPanel("Table",
+                 DT::dataTableOutput("dataTable")),
+        tabPanel("Histogram",
+                 plotOutput("histogram")),
+        tabPanel("Scatter Plot",
+                 plotOutput("scatterPlot")),
+        tabPanel("Trendline",
+                 plotOutput("trendlinePlot"))
+      )
+    )
+  )
+)
+
+server <- function(input, output) {
+  filteredData <- reactive({
+    df <- data[data$Age >= input$ageRange[1] & data$Age <= input$ageRange[2], ]
+    if (input$genderFilter != "All") {
+      df <- df[df$Gender == input$genderFilter, ]
+    }
+    return(as.list(df))
+  })
+  
+  output$dataTable <- DT::renderDataTable({
+    DT::datatable(as.data.frame(filteredData()), options = list(pageLength = 10))
+  })
+  
+  output$histogram <- renderPlot({
+    ggplot(as.data.frame(filteredData()), aes(x = BMI, fill = Gender)) +
+      geom_histogram(bins = 15, position = "dodge", alpha = 0.7) +
+      labs(title = "Histogram of BMI", x = "BMI", y = "Count") +
+      theme_minimal() +
+      theme(
+        plot.title = element_text(size = 18, face = "bold", hjust = 0.5),
+        axis.title = element_text(size = 14)
+      )
+  })
+  
+  output$scatterPlot <- renderPlot({
+    ggplot(as.data.frame(filteredData()), aes(x = Age, y = BMI, color = Gender)) +
+      geom_point(size = 3, alpha = 0.7) +
+      labs(title = "Scatter Plot of Age vs BMI", x = "Age", y = "BMI") +
+      theme_minimal() +
+      theme(
+        plot.title = element_text(size = 18, face = "bold", hjust = 0.5),
+        axis.title = element_text(size = 14)
+      )
+  })
+  
+  output$trendlinePlot <- renderPlot({
+    ggplot(as.data.frame(filteredData()), aes(x = Age, y = BMI)) +
+      geom_point(size = 3, alpha = 0.7, color = "#007bff") +
+      geom_smooth(method = "lm", se = FALSE, color = "#ff5722", size = 1) +
+      labs(title = "Trendline of Age vs BMI", x = "Age", y = "BMI") +
+      theme_minimal() +
+      theme(
+        plot.title = element_text(size = 18, face = "bold", hjust = 0.5),
+        axis.title = element_text(size = 14)
+      )
+  })
+}
+
+shinyApp(ui = ui, server = server)
